@@ -96,8 +96,8 @@ def plot_graphs(data):
 # Основной блок
 # -----------------------------
 if __name__ == '__main__':
-    var_path = 'Curve1.var'  # путь к VAR файлу
-    sgr_path = 'Curve1.sgr'  # путь к SGR файлу
+    var_path = 'test/Curve1.var'  # путь к VAR файлу
+    sgr_path = 'test/Curve1.sgr'  # путь к SGR файлу
 
     var_names = read_var_file(var_path)
     print(f'Найдено переменных: {len(var_names)}')
