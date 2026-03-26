@@ -67,23 +67,25 @@ def get_all_variable_names(data_dict):
     return [k for k in data_dict.keys() if k != 'time']
 
 # -----------------------------
-# Основной блок
+# Функция загрузки данных
 # -----------------------------
-if __name__ == '__main__':
-    var_path = 'test\Curve1.var'  # путь к VAR файлу
-    sgr_path = 'teat\Curve1.sgr'  # путь к SGR файлу
-
-    # 1. Чтение VAR
+def load_sgr_var_data(var_path, sgr_path):
+    """
+    Загружает VAR + SGR и возвращает словарь данных и список переменных.
+    """
+    # 1. VAR
     var_names = read_var_file(var_path)
     print(f'Найдено переменных в VAR: {len(var_names)}')
-
-    # 2. Чтение SGR
+    
+    # 2. SGR
     data_arrays = read_sgr_file(sgr_path, len(var_names))
-
-    # 3. Создание словаря
+    
+    # 3. Словарь
     data = create_data_dict(data_arrays[0], var_names, data_arrays)
     print(f'Ключи словаря: {list(data.keys())[:5]} ... всего {len(data)} ключей')
-
-    # 4. Получение списка переменных
+    
+    # 4. Список переменных
     all_vars = get_all_variable_names(data)
     print(f'Список всех переменных (без времени):\n{all_vars}')
+    
+    return data, all_vars
