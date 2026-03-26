@@ -1,6 +1,7 @@
-// src/main.tsx   ← можно оставить .tsx, это не страшно
+// src/main.tsx
+import * as THREE from 'three'
 import { Visualizer } from './visualizer/Visualizer';
-import type { AnimationData } from './visualizer/types';
+import type { TrajectoryData } from './visualizer/types';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -41,127 +42,16 @@ app.innerHTML = `
         <span id="time-display" style="font-family:monospace; min-width:60px;">0.00s</span>
       </div>
     </div>
-    <div id="canvas" style="flex:1;background:#111;"></div>
+    <div id="canvas" style="flex:1;background:#ffffff;"></div>
   </div>
 `;
 
 const container = document.getElementById('canvas')!;
 const visualizer = new Visualizer(container);
-// === Обработчики UI ===
 
-document.getElementById('btn-test')!.onclick = () => {
-  test();                    // запускает нашу 5-секундную тестовую траекторию
-};
-
-document.getElementById('play')!.onclick = () => visualizer.play();
-document.getElementById('pause')!.onclick = () => visualizer.pause();
-
-document.getElementById('front')!.onclick = () => visualizer.setView('front');
-document.getElementById('side')!.onclick = () => visualizer.setView('side');
-document.getElementById('top')!.onclick = () => visualizer.setView('top');
-document.getElementById('iso')!.onclick = () => visualizer.setView('isometric');
-
-// Следить за деталью
-(document.getElementById('follow') as HTMLSelectElement).onchange = (e) => {
-  visualizer.toggleFollow((e.target as HTMLSelectElement).value || null);
-};
-
-// === Ползунок времени (работает в обе стороны) ===
-const timeline = document.getElementById('timeline') as HTMLInputElement;
-const timeDisplay = document.getElementById('time-display')!;
-
-let isDragging = false;
-
-// При изменении ползунка вручную — сразу применяем время
-timeline.addEventListener('input', () => {
-  if (!visualizer['animationData']) return;
-  
-  isDragging = true;
-  const progress = parseFloat(timeline.value) / 100;           // 0.0 → 1.0
-  const maxTime = visualizer['animationData'].times.at(-1) || 5;
-  const targetTime = progress * maxTime;
-
-  visualizer.setTime(targetTime);                             // ← ключевой вызов
-  timeDisplay.textContent = targetTime.toFixed(2) + 's';
-});
-
-// Когда отпускаем ползунок — снимаем флаг
-timeline.addEventListener('change', () => {
-  isDragging = false;
-});
-
-// Обновление ползунка только во время автоматического воспроизведения
-const originalAnimate = visualizer['animate'].bind(visualizer);
 // =============================================
-// ЛИНИЯ ТРАЕКТОРИИ ДВИЖЕНИЯ
+// ЗАГРУЗКА STL МОДЕЛЕЙ
 // =============================================
-
-let trajectoryLine: THREE.Line | null = null;
-let trajectoryVisible = false;
-
-function createTrajectoryLine() {
-  if (!visualizer['animationData'] || !visualizer['animationData'].parts['Car body']) {
-    console.warn('Нет данных для траектории');
-    return;
-  }
-
-  const positions = visualizer['animationData'].parts['Car body'].positions;
-  
-  if (positions.length < 2) return;
-
-  // Создаём точки линии (смещаем по высоте кузова, примерно +0.8м от центра)
-  const points: THREE.Vector3[] = positions.map(pos => 
-    new THREE.Vector3(pos[0], pos[1], pos[2] + 0.8)   // 0.8м — примерно середина высоты кузова
-  );
-
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  
-  const material = new THREE.LineBasicMaterial({ 
-    color: 0xff0000,      // ярко-красный
-    linewidth: 4 
-  });
-
-  // Удаляем старую линию, если была
-  if (trajectoryLine) {
-    visualizer['scene'].remove(trajectoryLine);
-  }
-
-  trajectoryLine = new THREE.Line(geometry, material);
-  visualizer['scene'].add(trajectoryLine);
-  
-  console.log(`✅ Линия траектории создана (${points.length} точек)`);
-}
-
-function toggleTrajectory() {
-  trajectoryVisible = !trajectoryVisible;
-
-  if (trajectoryVisible) {
-    createTrajectoryLine();
-  } else if (trajectoryLine) {
-    visualizer['scene'].remove(trajectoryLine);
-    trajectoryLine = null;
-  }
-
-  console.log(`Траектория: ${trajectoryVisible ? 'включена' : 'выключена'}`);
-}
-
-// Обработчик кнопки
-document.getElementById('btn-traj')!.onclick = toggleTrajectory;
-
-visualizer['animate'] = function () {
-  originalAnimate.call(this);
-
-  if (visualizer['isPlaying'] && visualizer['animationData'] && !isDragging) {
-    const elapsed = ((Date.now() - visualizer['playbackStartTime']) / 1000) * visualizer['currentSpeed'];
-    const maxTime = visualizer['animationData'].times.at(-1) || 5;
-    const clampedTime = Math.min(elapsed, maxTime);
-    const progress = (clampedTime / maxTime) * 100;
-
-    timeline.value = progress.toString();
-    timeDisplay.textContent = clampedTime.toFixed(2) + 's';
-  }
-};
-// Обработчики кнопок
 document.getElementById('btn-body')!.onclick = () => {
   const input = document.createElement('input');
   input.type = 'file';
@@ -179,7 +69,7 @@ document.getElementById('btn-w1')!.onclick = () => {
   input.accept = '.stl';
   input.onchange = e => {
     const file = (e.target as HTMLInputElement).files?.[0];
-    if (file) visualizer.loadSTL(file, 'Wheelset1.WSet');
+    if (file) visualizer.loadSTL(file, 'Wheelset1');
   };
   input.click();
 };
@@ -190,10 +80,130 @@ document.getElementById('btn-w2')!.onclick = () => {
   input.accept = '.stl';
   input.onchange = e => {
     const file = (e.target as HTMLInputElement).files?.[0];
-    if (file) visualizer.loadSTL(file, 'Wheelset2.WSet');
+    if (file) visualizer.loadSTL(file, 'Wheelset2');
   };
   input.click();
 };
+
+// =============================================
+// УПРОЩЁННЫЙ ЗАПУСК ТЕСТОВОЙ ТРАЕКТОРИИ
+// =============================================
+
+(window as any).test = () => {
+  if (typeof testTrajectory === 'undefined') {
+    console.error('❌ testTrajectory не найден');
+    return;
+  }
+  visualizer.setTrajectory(testTrajectory);
+  visualizer.play();
+  console.log('🚀 Тестовая траектория на 5 секунд запущена');
+};
+
+(window as any).loadTrajectory = (json: any) => {
+  visualizer.setTrajectory(json);
+  visualizer.play();
+};
+
+// =============================================
+// РЕЛЬСЫ ПО ТРАЕКТОРИИ ДВИЖЕНИЯ
+// =============================================
+
+let railsGroup: THREE.Group | null = null;
+let railsVisible = false;
+
+function createRails() {
+  if (!visualizer['animationData']?.parts['Wheelset1'] && 
+      !visualizer['animationData']?.parts['Wheelset1.WSet']) {
+    console.warn('❌ Нет данных колёсных пар для создания рельсов');
+    return;
+  }
+
+  // Берём данные первой колёсной пары (можно потом сделать для обеих)
+  const wheelsetName = visualizer['animationData'].parts['Wheelset1'] ? 'Wheelset1' : 'Wheelset1.WSet';
+  const positions = visualizer['animationData'].parts[wheelsetName].positions;
+
+  if (positions.length < 2) return;
+
+  // Создаём группу для рельсов
+  const group = new THREE.Group();
+
+  const railMaterial = new THREE.LineBasicMaterial({
+    color: 0x333333,      // тёмно-серый цвет рельсов
+    linewidth: 6,
+  });
+
+  const leftPoints: THREE.Vector3[] = [];
+  const rightPoints: THREE.Vector3[] = [];
+
+  // Ширина между рельсами ≈ 1.435 м (стандартная колея)
+  const railWidth = 1.435;
+
+  positions.forEach(pos => {
+    const x = pos[0];
+    const y = pos[1];
+    const z = pos[2] - 0.05;        // чуть ниже уровня колеса
+
+    // Левый рельс
+    leftPoints.push(new THREE.Vector3(x, y - railWidth/2, z));
+    // Правый рельс
+    rightPoints.push(new THREE.Vector3(x, y + railWidth/2, z));
+  });
+
+  // Создаём левый рельс
+  const leftGeometry = new THREE.BufferGeometry().setFromPoints(leftPoints);
+  const leftRail = new THREE.Line(leftGeometry, railMaterial);
+  group.add(leftRail);
+
+  // Создаём правый рельс
+  const rightGeometry = new THREE.BufferGeometry().setFromPoints(rightPoints);
+  const rightRail = new THREE.Line(rightGeometry, railMaterial);
+  group.add(rightRail);
+
+  // Добавляем шпалы (поперечные связи) каждые 0.6 метра
+  const sleeperMaterial = new THREE.LineBasicMaterial({ color: 0x8B4513 });
+  for (let i = 0; i < positions.length; i += 12) {   // примерно каждые 0.6 сек
+    if (i >= positions.length) break;
+    const p = positions[i];
+    const sleeperPoints = [
+      new THREE.Vector3(p[0], p[1] - railWidth/2, p[2] - 0.05),
+      new THREE.Vector3(p[0], p[1] + railWidth/2, p[2] - 0.05)
+    ];
+    const sleeperGeo = new THREE.BufferGeometry().setFromPoints(sleeperPoints);
+    const sleeper = new THREE.Line(sleeperGeo, sleeperMaterial);
+    group.add(sleeper);
+  }
+
+  // Удаляем старые рельсы, если были
+  if (railsGroup) {
+    visualizer['scene'].remove(railsGroup);
+  }
+
+  railsGroup = group;
+  visualizer['scene'].add(railsGroup);
+
+  console.log(`✅ Рельсы созданы (${positions.length} точек, ${Math.floor(positions.length/12)} шпал)`);
+}
+
+function toggleRails() {
+  railsVisible = !railsVisible;
+
+  if (railsVisible) {
+    createRails();
+  } else if (railsGroup) {
+    visualizer['scene'].remove(railsGroup);
+    railsGroup = null;
+    console.log('🚫 Рельсы скрыты');
+  }
+}
+
+// Подключаем кнопку
+document.getElementById('btn-traj')!.onclick = toggleRails;
+
+
+
+// =============================================
+// ОСТАЛЬНЫЕ ОБРАБОТЧИКИ
+// =============================================
 
 document.getElementById('play')!.onclick = () => visualizer.play();
 document.getElementById('pause')!.onclick = () => visualizer.pause();
@@ -207,43 +217,50 @@ document.getElementById('iso')!.onclick = () => visualizer.setView('isometric');
   visualizer.toggleFollow((e.target as HTMLSelectElement).value || null);
 };
 
+// Ползунок времени
+const timeline = document.getElementById('timeline') as HTMLInputElement;
+const timeDisplay = document.getElementById('time-display')!;
 
+let isDragging = false;
 
-// === ЛЕГЕНДА ОСЕЙ (видна всегда, особенно полезна в изометрии) ===
-const legend = document.createElement('div');
-legend.style.cssText = `
-  position: absolute; 
-  bottom: 15px; 
-  right: 15px; 
-  background: rgba(0,0,0,0.85); 
-  color: white; 
-  padding: 10px 14px; 
-  border-radius: 6px; 
-  font-size: 13px; 
-  line-height: 1.5; 
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-  z-index: 100;
-  pointer-events: none;
-`;
-legend.innerHTML = `
-  <strong>ЛСК:</strong>
+timeline.addEventListener('input', () => {
+  if (!visualizer['animationData']) return;
+  isDragging = true;
+  const progress = parseFloat(timeline.value) / 100;
+  const maxTime = visualizer['animationData'].times.at(-1) || 5;
+  const targetTime = progress * maxTime;
 
-  <span style="color:#ff4444">●</span> X — по ходу движения
+  visualizer.setTime(targetTime);
+  timeDisplay.textContent = targetTime.toFixed(2) + 's';
+});
 
-  <span style="color:#44ff44">●</span> Y — влево
+timeline.addEventListener('change', () => {
+  isDragging = false;
+});
 
-  <span style="color:#4488ff">●</span> Z — вверх
-`;
-document.body.appendChild(legend);
-// === ДИАГНОСТИКА ПОЛОЖЕНИЯ ===
-console.log('Текущие позиции деталей:');
-for (const [name, mesh] of visualizer['meshes']) {
-  console.log(name, mesh.position);
-}
-// === РАСШИРЕННАЯ ТЕСТОВАЯ ТРАЕКТОРИЯ (5 секунд) ===
+// Обновление ползунка при воспроизведении
+const originalAnimate = visualizer['animate'].bind(visualizer);
+visualizer['animate'] = function () {
+  originalAnimate.call(this);
+
+  if (visualizer['isPlaying'] && visualizer['animationData'] && !isDragging) {
+    const elapsed = ((Date.now() - visualizer['playbackStartTime']) / 1000) * visualizer['currentSpeed'];
+    const maxTime = visualizer['animationData'].times.at(-1) || 5;
+    const clamped = Math.min(elapsed, maxTime);
+    const progress = (clamped / maxTime) * 100;
+
+    timeline.value = progress.toString();
+    timeDisplay.textContent = clamped.toFixed(2) + 's';
+  }
+};
+
+// =============================================
+// ТЕСТОВАЯ ТРАЕКТОРИЯ (5 секунд)
+// =============================================
+
 const testTrajectory = {
   "time": [
-    0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45,
+     0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45,
     0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95,
     1.0, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45,
     1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.95,
@@ -307,7 +324,7 @@ const testTrajectory = {
     "detail_2": {
       "name": "Wheelset1",
       "position": [
-        [0.0, 0, 0.525], [0.1, 0, 0.525], [0.2, 0, 0.525], [0.3, 0, 05], [0.4, 0, 0.525],
+        [0.0, 0, 0.525], [0.1, 0, 0.525], [0.2, 0, 0.525], [0.3, 0, 0.5], [0.4, 0, 0.525],
         [0.5, 0, 0.525], [0.6, 0, 0.525], [0.7, 0, 0.525], [0.8, 0, 0.525], [0.9, 0, 0.525],
         [1.0, 0, 0.525], [1.1, 0, 0.525], [1.2, 0, 0.525], [1.3, 0, 0.525], [1.4, 0, 0.525],
         [1.5, 0, 0.525], [1.6, 0, 0.525], [1.7, 0, 0.525], [1.8, 0, 0.525], [1.9, 0, 0.525],
@@ -356,13 +373,9 @@ const testTrajectory = {
   }
 };
 
-// =============================================
-// УПРОЩЁННЫЙ ЗАПУСК ТЕСТОВОЙ ТРАЕКТОРИИ
-// =============================================
-
 (window as any).test = () => {
   if (typeof testTrajectory === 'undefined') {
-    console.error('❌ testTrajectory не найден. Убедись, что данные траектории объявлены выше.');
+    console.error('❌ testTrajectory не найден');
     return;
   }
   visualizer.setTrajectory(testTrajectory);
@@ -370,9 +383,10 @@ const testTrajectory = {
   console.log('🚀 Тестовая траектория на 5 секунд запущена');
 };
 
-// Для загрузки реальных данных от бэкенда
 (window as any).loadTrajectory = (json: any) => {
   visualizer.setTrajectory(json);
   visualizer.play();
   console.log('✅ Загружена траектория от бэкенда');
 };
+
+console.log('✅ main.tsx успешно загружен');

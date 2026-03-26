@@ -28,7 +28,7 @@ export class Visualizer {
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(this.renderer.domElement);
-
+    this.scene.background = new THREE.Color(0xffffff);
     this.camera.position.set(12, -18, 10);
     this.camera.lookAt(0, 0, 2);
 
