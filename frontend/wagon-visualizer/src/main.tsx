@@ -14,6 +14,7 @@ app.innerHTML = `
       <button id="btn-w2">Загрузить КП2</button>
       
       <button id="btn-test">▶ Запустить тестовую траекторию (5 сек)</button>
+      <button id="btn-traj">📈 Траектория</button>
       
       <button id="play">▶ Play</button>
       <button id="pause">⏸ Pause</button>
@@ -91,6 +92,61 @@ timeline.addEventListener('change', () => {
 
 // Обновление ползунка только во время автоматического воспроизведения
 const originalAnimate = visualizer['animate'].bind(visualizer);
+// =============================================
+// ЛИНИЯ ТРАЕКТОРИИ ДВИЖЕНИЯ
+// =============================================
+
+let trajectoryLine: THREE.Line | null = null;
+let trajectoryVisible = false;
+
+function createTrajectoryLine() {
+  if (!visualizer['animationData'] || !visualizer['animationData'].parts['Car body']) {
+    console.warn('Нет данных для траектории');
+    return;
+  }
+
+  const positions = visualizer['animationData'].parts['Car body'].positions;
+  
+  if (positions.length < 2) return;
+
+  // Создаём точки линии (смещаем по высоте кузова, примерно +0.8м от центра)
+  const points: THREE.Vector3[] = positions.map(pos => 
+    new THREE.Vector3(pos[0], pos[1], pos[2] + 0.8)   // 0.8м — примерно середина высоты кузова
+  );
+
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  
+  const material = new THREE.LineBasicMaterial({ 
+    color: 0xff0000,      // ярко-красный
+    linewidth: 4 
+  });
+
+  // Удаляем старую линию, если была
+  if (trajectoryLine) {
+    visualizer['scene'].remove(trajectoryLine);
+  }
+
+  trajectoryLine = new THREE.Line(geometry, material);
+  visualizer['scene'].add(trajectoryLine);
+  
+  console.log(`✅ Линия траектории создана (${points.length} точек)`);
+}
+
+function toggleTrajectory() {
+  trajectoryVisible = !trajectoryVisible;
+
+  if (trajectoryVisible) {
+    createTrajectoryLine();
+  } else if (trajectoryLine) {
+    visualizer['scene'].remove(trajectoryLine);
+    trajectoryLine = null;
+  }
+
+  console.log(`Траектория: ${trajectoryVisible ? 'включена' : 'выключена'}`);
+}
+
+// Обработчик кнопки
+document.getElementById('btn-traj')!.onclick = toggleTrajectory;
 
 visualizer['animate'] = function () {
   originalAnimate.call(this);
