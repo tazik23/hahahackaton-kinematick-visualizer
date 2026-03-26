@@ -95,9 +95,7 @@ def plot_graphs(data):
 # -----------------------------
 # Основной блок
 # -----------------------------
-if __name__ == '__main__':
-    var_path = 'test/Curve1.var'  # путь к VAR файлу
-    sgr_path = 'test/Curve1.sgr'  # путь к SGR файлу
+def get_data(var_path, sgr_path):
 
     var_names = read_var_file(var_path)
     print(f'Найдено переменных: {len(var_names)}')
@@ -106,3 +104,5 @@ if __name__ == '__main__':
     data = create_data_dict(data_arrays[0], var_names, data_arrays)
 
     plot_graphs(data)
+
+

@@ -1,5 +1,7 @@
 from flask import request, jsonify
 from routes import api_bp, SESSION
+import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 @api_bp.route("/data", methods=["POST"])
 def upload_data():
@@ -102,3 +104,46 @@ def build_global_candidates(var_dict):
         ]
 
     return candidates
+
+
+def compute_animation(detail, var_dict):
+    m = detail.mapping
+
+    x = np.array(var_dict[m["dx"]])
+    y = np.array(var_dict[m["dy"]])
+    z = np.array(var_dict[m["dz"]])
+
+    rx = np.array(var_dict[m["rx"]])
+    ry = np.array(var_dict[m["ry"]])
+    rz = np.array(var_dict[m["rz"]])
+
+    P1 = np.stack([x, y, z], axis=1)
+
+    P1_0 = P1[0]
+    new_lsk = np.array([
+        detail.lsk["x"],
+        detail.lsk["y"],
+        detail.lsk["z"]
+    ])
+
+    roffset = new_lsk - P1_0
+
+    P2 = []
+
+    for i in range(len(P1)):
+        rot = R.from_euler('xyz', [rx[i], ry[i], rz[i]])
+        rotated_offset = rot.apply(roffset)
+
+        p2 = P1[i] + rotated_offset
+        P2.append(p2)
+
+    P2 = np.array(P2)
+
+    return {
+        "x": P2[:, 0].tolist(),
+        "y": P2[:, 1].tolist(),
+        "z": P2[:, 2].tolist(),
+        "rx": rx.tolist(),
+        "ry": ry.tolist(),
+        "rz": rz.tolist()
+    }
