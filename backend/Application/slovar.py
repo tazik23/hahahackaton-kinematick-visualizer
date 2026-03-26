@@ -69,7 +69,7 @@ def get_all_variable_names(data_dict):
 # -----------------------------
 # Функция загрузки данных
 # -----------------------------
-def load_sgr_var_data(var_path, sgr_path):
+def get_data(var_path, sgr_path):
     """
     Загружает VAR + SGR и возвращает словарь данных и список переменных.
     """

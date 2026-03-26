@@ -6,6 +6,7 @@ class Detail:
         self.name = name
         self.stl_file = stl_file
         self.lsk = lsk
+        self.mapping = []
 
     def to_response(self):
         return {

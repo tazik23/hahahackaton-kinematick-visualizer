@@ -2,8 +2,6 @@ from flask import request, jsonify
 from routes import api_bp, SESSION
 from Domain import Detail
 
-
-
 @api_bp.route("/details", methods=["POST"])
 def upload_details():
     data = request.json
