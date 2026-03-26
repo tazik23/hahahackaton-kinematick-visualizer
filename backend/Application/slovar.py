@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import re
 import os
 
@@ -7,10 +6,13 @@ import os
 # Чтение VAR файла
 # -----------------------------
 def read_var_file(var_path, encoding='cp1251'):
+    """
+    Парсит VAR файл и возвращает список имён переменных в формате ключей словаря.
+    """
     with open(var_path, 'r', encoding=encoding) as f:
         text = f.read()
     
-    # Ищем все блоки grvar
+    # Ищем все блоки grvar до следующего grvar/page/end
     pattern = r'with grvar;(.*?)(?=with grvar;|with page;|with end;)'
     matches = re.findall(pattern, text, re.DOTALL)
     
@@ -28,10 +30,13 @@ def read_var_file(var_path, encoding='cp1251'):
 # Чтение SGR файла
 # -----------------------------
 def read_sgr_file(sgr_path, num_vars):
+    """
+    Считывает бинарный SGR файл и возвращает список массивов numpy.
+    Первый массив — время, остальные — переменные.
+    """
     file_size = os.path.getsize(sgr_path)
     num_rows = num_vars + 1  # +1 для времени
     bytes_per_row = file_size // num_rows
-    num_points = bytes_per_row // 4  # float32
     
     data_arrays = []
     with open(sgr_path, 'rb') as f:
@@ -44,65 +49,43 @@ def read_sgr_file(sgr_path, num_vars):
 # Создание словаря с данными
 # -----------------------------
 def create_data_dict(time_array, var_names, data_arrays):
+    """
+    Создаёт словарь {имя_переменной: np.array([...])}, первый ключ — 'time'.
+    """
     data_dict = {'time': time_array}
     for name, array in zip(var_names, data_arrays[1:]):
         data_dict[name] = array
     return data_dict
 
 # -----------------------------
-# Построение графиков
+# Получение списка всех переменных
 # -----------------------------
-def plot_graphs(data):
-    time = data['time']
-    
-    # Перемещения кузова
-    plt.figure(figsize=(10,6))
-    plt.plot(time, data['r_x_Car_body'], label='X')
-    plt.plot(time, data['r_y_Car_body'], label='Y')
-    plt.plot(time, data['r_z_Car_body'], label='Z')
-    plt.title("Перемещения кузова вагона")
-    plt.xlabel("Время [с]")
-    plt.ylabel("Положение [м]")
-    plt.legend()
-    plt.grid()
-    plt.show()
-    
-    # Перемещения колёсных пар
-    plt.figure(figsize=(10,6))
-    plt.plot(time, data['r_x_Wheelset1_WSet'], label='Wheelset1 X')
-    plt.plot(time, data['r_y_Wheelset1_WSet'], label='Wheelset1 Y')
-    plt.plot(time, data['r_z_Wheelset1_WSet'], label='Wheelset1 Z')
-    plt.plot(time, data['r_x_Wheelset2_WSet'], label='Wheelset2 X')
-    plt.plot(time, data['r_y_Wheelset2_WSet'], label='Wheelset2 Y')
-    plt.plot(time, data['r_z_Wheelset2_WSet'], label='Wheelset2 Z')
-    plt.title("Перемещения колёсных пар")
-    plt.xlabel("Время [с]")
-    plt.ylabel("Положение [м]")
-    plt.legend()
-    plt.grid()
-    plt.show()
-    
-    # Пример углов поворота одной колёсной пары
-    plt.figure(figsize=(10,6))
-    plt.plot(time, data['ang_y_Wheelset1_WSetRotat_Wheelset1_WSet'], label='Wheelset1 Y rotation')
-    plt.title("Угол поворота колеса Wheelset1")
-    plt.xlabel("Время [с]")
-    plt.ylabel("Радианы")
-    plt.legend()
-    plt.grid()
-    plt.show()
+def get_all_variable_names(data_dict):
+    """
+    Возвращает список всех ключей словаря, кроме 'time'.
+    """
+    return [k for k in data_dict.keys() if k != 'time']
 
 # -----------------------------
-# Основной блок
+# Функция загрузки данных
 # -----------------------------
-if __name__ == '__main__':
-    var_path = 'test/Curve1.var'  # путь к VAR файлу
-    sgr_path = 'test/Curve1.sgr'  # путь к SGR файлу
-
+def load_sgr_var_data(var_path, sgr_path):
+    """
+    Загружает VAR + SGR и возвращает словарь данных и список переменных.
+    """
+    # 1. VAR
     var_names = read_var_file(var_path)
-    print(f'Найдено переменных: {len(var_names)}')
-
+    print(f'Найдено переменных в VAR: {len(var_names)}')
+    
+    # 2. SGR
     data_arrays = read_sgr_file(sgr_path, len(var_names))
+    
+    # 3. Словарь
     data = create_data_dict(data_arrays[0], var_names, data_arrays)
-
-    plot_graphs(data)
+    print(f'Ключи словаря: {list(data.keys())[:5]} ... всего {len(data)} ключей')
+    
+    # 4. Список переменных
+    all_vars = get_all_variable_names(data)
+    print(f'Список всех переменных (без времени):\n{all_vars}')
+    
+    return data, all_vars
