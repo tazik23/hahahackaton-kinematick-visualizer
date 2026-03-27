@@ -8,7 +8,7 @@ def upload_data():
     var_file = request.files['var_file']
     sgr_file = request.files['sgr_file']
 
-    var_dict = get_dict(var_file, sgr_file)
+    #var_dict = get_dict(var_file, sgr_file)
     SESSION["var"] = var_dict
 
     global_candidates = build_global_candidates(var_dict)
