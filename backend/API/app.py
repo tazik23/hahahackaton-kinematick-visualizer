@@ -1,10 +1,6 @@
-from flask import Flask
-from flask_cors import CORS
-from backend.API.routes.routes import api_bp 
+from API import create_app
 
-app = Flask(__name__)
-app.register_blueprint(api_bp, url_prefix = "/api")
-CORS(app)
+app = create_app()
 
 if __name__ == "__main__":
     app.run(debug=True)

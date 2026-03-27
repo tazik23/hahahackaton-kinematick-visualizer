@@ -1,149 +1,84 @@
-from flask import request, jsonify
-from routes import api_bp, SESSION
-import numpy as np
-from scipy.spatial.transform import Rotation as R
+from flask import request, jsonify, Blueprint
+from Api.dto import DetailResponse, MappingResponse
+from Application.services import MappingService, AnimationService
+from Infrastructure.parsers import DataLoader
 
-@api_bp.route("/data", methods=["POST"])
-def upload_data():
-    var_file = request.files['var_file']
-    sgr_file = request.files['sgr_file']
+data_bp = Blueprint('data', __name__)
 
-    #var_dict = get_dict(var_file, sgr_file)
-    SESSION["var"] = var_dict
+class DataController:
+    """Контроллер для работы с данными"""
+    
+    def __init__(self, session):
+        self.session = session
+        self.data_loader = DataLoader()
+    
+    def upload_data(self):
+        """Загрузка файлов с данными"""
+        var_file = request.files['var_file']
+        sgr_file = request.files['sgr_file']
+  
+        var_dict, _ = self.data_loader.load(var_file, sgr_file)
+        self.session["var"] = var_dict
+        
+        mapping_service = MappingService(var_dict)
+  
+        global_candidates = mapping_service.get_global_candidates()
 
-    global_candidates = build_global_candidates(var_dict)
-
-    details_response = []
-
-    for detail in SESSION["details"].values():
-        mapping, status = automap_detail(detail, var_dict)
-        detail.mapping = mapping
-
-        details_response.append({
-            "id": detail.id,
-            "name": detail.name,
-            "status": status,
-            "mapping": mapping
+        details_response = []
+        for detail in self.session["details"].values():
+            mapping, status = mapping_service.automap_detail(detail)
+            detail.update_mapping(mapping.to_dict())
+            
+            details_response.append({
+                "id": detail.id,
+                "name": detail.name,
+                "status": status.value,
+                "mapping": mapping.to_dict()
+            })
+        
+        return jsonify({
+            "candidates": global_candidates,
+            "details": details_response
         })
+    
+    def set_mapping(self, detail_id: str):
+        """Установка маппинга для детали"""
+        data = request.json
+        mapping = data.get("mapping")
+        
+        detail = self.session["details"].get(detail_id)
+        if not detail:
+            return jsonify({"error": "Detail not found"}), 404
+        
+        detail.update_mapping(mapping)
+        return jsonify({"status": "ok"})
+    
+    def get_animation(self, detail_id: str):
+        """Получение анимации для детали"""
+        detail = self.session["details"].get(detail_id)
+        if not detail:
+            return jsonify({"error": "Detail not found"}), 404
+        
+        var_dict = self.session.get("var")
+        if not var_dict:
+            return jsonify({"error": "Data not loaded"}), 400
+        
+        animation_service = AnimationService(var_dict)
+        result = animation_service.compute_animation(detail)
+        
+        return jsonify(result)
 
-    return jsonify({
-        "candidates": global_candidates,
-        "details": details_response
-    })
-
-@api_bp.route("/mapping", methods=["POST"])
-def set_mapping():
-    data = request.json
-
-    detail_id = data.get("detail_id")
-    mapping = data.get("mapping")
-
-    detail = SESSION["details"].get(detail_id)
-
-    if not detail:
-        return jsonify({"error": "Detail not found"}), 404
-
-    detail.mapping = mapping
-
-    return jsonify({"status": "ok"})
-
-def normalize(name):
-    return name.lower().replace(" ", "_").replace(".", "_")
-
-
-def find_component(var_dict, detail_name, prefix):
-    search = normalize(detail_name)
-
-    return [
-        k for k in var_dict.keys()
-        if prefix in k and search in normalize(k)
-    ]
-
-def automap_detail(detail, var_dict):
-    components = {
-        "dx": "r:x",
-        "dy": "r:y",
-        "dz": "r:z",
-        "rx": "ang:x",
-        "ry": "ang:y",
-        "rz": "ang:z"
-    }
-
-    mapping = {}
-
-    for key, prefix in components.items():
-        found = find_component(var_dict, detail.name, prefix)
-        mapping[key] = found[0] if len(found) == 1 else None
-
-    if all(mapping.values()):
-        status = "ok"
-    elif any(mapping.values()):
-        status = "partial"
-    else:
-        status = "not_found"
-
-    return mapping, status
-
-
-def build_global_candidates(var_dict):
-    components = {
-        "dx": "r:x",
-        "dy": "r:y",
-        "dz": "r:z",
-        "rx": "ang:x",
-        "ry": "ang:y",
-        "rz": "ang:z"
-    }
-
-    candidates = {}
-
-    for key, prefix in components.items():
-        candidates[key] = [
-            k for k in var_dict.keys()
-            if prefix in k
-        ]
-
-    return candidates
-
-
-def compute_animation(detail, var_dict):
-    m = detail.mapping
-
-    x = np.array(var_dict[m["dx"]])
-    y = np.array(var_dict[m["dy"]])
-    z = np.array(var_dict[m["dz"]])
-
-    rx = np.array(var_dict[m["rx"]])
-    ry = np.array(var_dict[m["ry"]])
-    rz = np.array(var_dict[m["rz"]])
-
-    P1 = np.stack([x, y, z], axis=1)
-
-    P1_0 = P1[0]
-    new_lsk = np.array([
-        detail.lsk["x"],
-        detail.lsk["y"],
-        detail.lsk["z"]
-    ])
-
-    roffset = new_lsk - P1_0
-
-    P2 = []
-
-    for i in range(len(P1)):
-        rot = R.from_euler('xyz', [rx[i], ry[i], rz[i]])
-        rotated_offset = rot.apply(roffset)
-
-        p2 = P1[i] + rotated_offset
-        P2.append(p2)
-
-    P2 = np.array(P2)
-
-    return {
-        "x": P2[:, 0].tolist(),
-        "y": P2[:, 1].tolist(),
-        "z": P2[:, 2].tolist(),
-        "rx": rx.tolist(),
-        "ry": ry.tolist(),
-        "rz": rz.tolist()
-    }
+def register_data_routes(bp, session):
+    controller = DataController(session)
+    
+    @bp.route("/data", methods=["POST"])
+    def upload_data():
+        return controller.upload_data()
+    
+    @bp.route("/mapping/<detail_id>", methods=["POST"])
+    def set_mapping(detail_id):
+        return controller.set_mapping(detail_id)
+    
+    @bp.route("/animation/<detail_id>", methods=["GET"])
+    def get_animation(detail_id):
+        return controller.get_animation(detail_id)

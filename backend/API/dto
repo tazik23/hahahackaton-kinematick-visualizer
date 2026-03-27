@@ -1,0 +1,18 @@
+from typing import Dict, List, Optional
+from dataclasses import dataclass
+
+@dataclass
+class DetailResponse:
+    """DTO для ответа с деталью"""
+    id: str
+    name: str
+    stl_file: str
+    lsk: Dict[str, float]
+    mapping: Dict[str, Optional[str]]
+    status: str
+
+@dataclass
+class MappingResponse:
+    """DTO для ответа с маппингом"""
+    status: str
+    mapping: Dict[str, Optional[str]]
