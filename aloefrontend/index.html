@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Details Manager</title>
+</head>
+<body>
+
+<h2>Добавить деталь (STL)</h2>
+
+<input type="file" id="stl"><br><br>
+
+<h3>Начальные координаты</h3>
+<input id="x" placeholder="x" value="0">
+<input id="y" placeholder="y" value="0">
+<input id="z" placeholder="z" value="0">
+<input id="rx" placeholder="rx" value="0">
+<input id="ry" placeholder="ry" value="0">
+<input id="rz" placeholder="rz" value="0">
+
+<br><br>
+<button onclick="addDetail()">Отправить</button>
+
+<hr>
+
+<h2>Список деталей</h2>
+<div id="details"></div>
+
+<hr>
+
+<h2>Загрузить VAR + SGR</h2>
+
+<input type="file" id="varFile"><br><br>
+<input type="file" id="sgrFile"><br><br>
+
+<button onclick="uploadData()">Отправить</button>
+
+<script src="app.js"></script>
+</body>
+</html>

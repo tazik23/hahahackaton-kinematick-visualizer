@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { AnimationData, ViewType } from './types';
 
 export class Visualizer {
@@ -28,7 +28,7 @@ export class Visualizer {
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(this.renderer.domElement);
-
+    this.scene.background = new THREE.Color(0xffffff);
     this.camera.position.set(12, -18, 10);
     this.camera.lookAt(0, 0, 2);
 
@@ -183,5 +183,32 @@ export class Visualizer {
 
   dispose() {
     this.meshes.forEach(m => this.scene.remove(m));
+  }
+  // === УНИВЕРСАЛЬНЫЙ МЕТОД ДЛЯ ЛЮБОЙ ТРАЕКТОРИИ ===
+  setTrajectory(rawData: TrajectoryData) {
+    const normalized: AnimationData = {
+      times: rawData.time,
+      parts: {}
+    };
+
+    // Преобразуем детали по полю "name"
+    for (const detail of Object.values(rawData.details)) {
+      const partName = detail.name;                    // "Car body", "Wheelset1" и т.д.
+
+      normalized.parts[partName] = {
+        positions: detail.position,
+        rotations: detail.angles
+      };
+    }
+
+    this.animationData = normalized;
+
+    // Применяем первый кадр сразу
+    if (normalized.times.length > 0) {
+      this.applyFrame(0);
+    }
+
+    console.log(`✅ Загружена траектория с ${Object.keys(normalized.parts).length} деталями`);
+    console.log('Детали:', Object.keys(normalized.parts));
   }
 } 
